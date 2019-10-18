@@ -15,6 +15,8 @@ public:
 		keywordsName =
 		{
 			{"return", "returnValue"},
+			{"continue", "continueValue"},
+			{"break", "breakValue"},
 			{"int", "intValue"}
 		};
 
@@ -37,7 +39,7 @@ public:
 		virtualFunctionPattern["Class CoreUObject.Object"] =
 		{
 			{ 
-				PatternScan::Parse("ProcessEvent", 0, "45 33 F6 4D 8B E0", 0xFF),
+				PatternScan::Parse("ProcessEvent", 0, "FF FF FF FF FF", 0xFE),
 				R"(	inline void ProcessEvent(class UFunction* function, void* parms)
 	{
 		return GetVFunction<void(*)(UObject*, class UFunction*, void*)>(this, %d)(this, function, parms);
@@ -46,12 +48,12 @@ public:
 		};
 		virtualFunctionPattern["Class CoreUObject.Class"] =
 		{
-			{ 
+			{
 				PatternScan::Parse("CreateDefaultObject", 0, "4C 8B DC 57 48 81 EC", 0xFF),
 				R"(	inline UObject* CreateDefaultObject()
 	{
 		return GetVFunction<UObject*(*)(UClass*)>(this, %d)(this);
-	})" }
+	})"		}
 		};
 
 		predefinedMembers["Class CoreUObject.Object"] =
@@ -270,6 +272,15 @@ public:
 	})")
 		};
 
+		/*
+		predefinedMethods["Class Engine.GameViewportClient"] =
+		{
+			PredefinedMethod::Inline(R"(	inline void PostRender(UCanvas* Canvas)
+	{
+		return GetVFunction<void(*)(UGameViewportClient*, UCanvas*)>(this, %d)(this, Canvas);
+	})")
+		};
+		*/
 		return true;
 	}
 

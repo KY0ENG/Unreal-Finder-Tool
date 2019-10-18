@@ -1,0 +1,5 @@
+# These are the available config settings.
+todo:
+  keyword: ["@todo", "TODO:"]
+  bodyKeyword: ["@body", "BODY:"]
+  autoAssign: CorrM

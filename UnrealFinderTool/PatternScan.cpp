@@ -72,11 +72,14 @@ PatternScanResult PatternScan::FindPattern(Memory* mem, uintptr_t dwStart, uintp
 			// Get Region information
 			exitLoop = !(VirtualQueryEx(mem->ProcessHandle, reinterpret_cast<LPVOID>(currentAddress), &info, sizeof info) == sizeof info && currentAddress < dwEnd);
 
+			if (exitLoop)
+				break;
+
 			// Size will used to alloc and read memory
 			const size_t allocSize = dwEnd - dwStart >= info.RegionSize ? info.RegionSize : dwEnd - dwStart;
 
 			// Bad Memory
-			if (!(info.State & MEM_COMMIT) || !(info.Type & MEM_PRIVATE) || !(info.Protect & (PAGE_READONLY | PAGE_READWRITE | PAGE_WRITECOPY)))
+			if (!(info.State & MEM_COMMIT) || info.Protect & (PAGE_NOACCESS | PAGE_WRITECOPY | PAGE_TARGETS_INVALID) || info.RegionSize > 0x300000)
 			{
 				// Get next address
 				currentAddress += allocSize;
@@ -89,7 +92,7 @@ PatternScanResult PatternScan::FindPattern(Memory* mem, uintptr_t dwStart, uintp
 			// Get next address
 			currentAddress += allocSize;
 
-		} while (!exitLoop);
+		} while (true);
 	}
 	
 	if (useThreads)
@@ -151,14 +154,13 @@ PatternScanResult PatternScan::FindPattern(Memory* mem, uintptr_t dwStart, uintp
 	{
 		for (RegionHolder memRegion : mem_regions)
 		{
-			SIZE_T allocCount = (dwEnd - dwStart) > info.RegionSize ? info.RegionSize : dwEnd - dwStart;
-			const auto pBuf = static_cast<PBYTE>(malloc(allocCount));
+			const auto pBuf = new BYTE[memRegion.second];
 
 			// Read one page or skip if failed
-			const SIZE_T dwOut = mem->ReadBytes(memRegion.first, pBuf, allocCount);
+			const SIZE_T dwOut = mem->ReadBytes(memRegion.first, pBuf, memRegion.second);
 			if (dwOut == 0)
 			{
-				free(pBuf);
+				delete[] pBuf;
 				continue;
 			}
 
@@ -192,7 +194,7 @@ PatternScanResult PatternScan::FindPattern(Memory* mem, uintptr_t dwStart, uintp
 				}
 			}
 
-			free(pBuf);
+			delete[] pBuf;
 		}
 	}
 

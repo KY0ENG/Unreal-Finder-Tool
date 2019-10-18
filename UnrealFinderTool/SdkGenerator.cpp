@@ -111,7 +111,7 @@ void SdkGenerator::Dump(const fs::path& path, std::string& state)
 			std::string str = NamesStore().GetByIndex(i);
 			if (!str.empty())
 				tfm::format(o, "[%06i] %s\n", int(i), NamesStore().GetByIndex(i).c_str());
-			state = "Names Progress [ " + std::to_string(i) + " / " + std::to_string(vecSize) + " ].";
+			state = "Names [ " + std::to_string(i) + " / " + std::to_string(vecSize) + " ].";
 		}
 	}
 
@@ -130,7 +130,7 @@ void SdkGenerator::Dump(const fs::path& path, std::string& state)
 				const UEObject* obj = ObjectsStore().GetByIndex(i);
 				tfm::format(o, "[%06i] %-100s 0x%" PRIXPTR "\n", obj->GetIndex(), obj->GetFullName(), obj->GetAddress());
 			}
-			state = "Objects Progress [ " + std::to_string(i) + " / " + std::to_string(vecSize) + " ].";
+			state = "Objects [ " + std::to_string(i) + " / " + std::to_string(vecSize) + " ].";
 		}
 	}
 }
@@ -202,9 +202,23 @@ void SdkGenerator::ProcessPackages(const fs::path& path, size_t* pPackagesCount,
 	*/
 	{
 		state = "Dumping '" + Utils::Settings.SdkGen.CorePackageName + "'.";
-		UEObject* obj = packageObjects[0];
 
-		auto package = std::make_unique<Package>(obj);
+		// Get CoreUObject, Some times CoreUObject not the first Package
+		UEObject* coreUObject;
+		int coreUObjectIndex = 0;
+		for (auto i = 0; i < packageObjects.size(); i++)
+		{
+			auto pack = packageObjects[i];
+
+			if(pack->GetName() == Utils::Settings.SdkGen.CorePackageName)
+			{
+				coreUObject = pack;
+				coreUObjectIndex = i;
+				break;
+			}
+		}
+
+		auto package = std::make_unique<Package>(coreUObject);
 		std::mutex tmp_lock;
 		package->Process(processedObjects, tmp_lock);
 		if (package->Save(sdkPath))
@@ -215,21 +229,22 @@ void SdkGenerator::ProcessPackages(const fs::path& path, size_t* pPackagesCount,
 				"E: " + std::to_string(package->Enums.size()) + " ]"
 			);
 
-			Package::PackageMap[*obj] = package.get();
+			Package::PackageMap[*coreUObject] = package.get();
 			packages.emplace_back(std::move(package));
 		}
 
 		// Set Sleep Every
 		Utils::Settings.Parallel.SleepEvery = 30;
-	}
 
-	Sleep(100);
+		// Remove CoreUObject Package to not dump it twice
+		packageObjects.erase(packageObjects.begin() + coreUObjectIndex);
+	}
 
 	++*pPackagesDone;
 	state = "Dumping with " + std::to_string(threadCount) + " Threads.";
 
 	// Start From 1 because core package is already done
-	ParallelQueue<std::vector<UEObject*>, UEObject*>packageProcess(packageObjects, 1, threadCount, [&](UEObject* obj, ParallelOptions& options)
+	ParallelQueue<std::vector<UEObject*>, UEObject*>packageProcess(packageObjects, 0, threadCount, [&](UEObject* obj, ParallelOptions& options)
 	{
 		auto package = std::make_unique<Package>(obj);
 		package->Process(processedObjects, Utils::MainMutex);
